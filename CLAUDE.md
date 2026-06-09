@@ -37,9 +37,21 @@ backend. No changes to the extension are required — the API response shape sta
 
 ## Current Status
 
-**Phase: Not started — data collection scripts are the first task.**
+**Phase: Step 1 in progress — data collection scripts written, not yet run.**
 
-Nothing has been built yet. Start with Step 1 below.
+Scripts are written. Next action: install dependencies, add API keys to `.env`, run collection.
+
+### What exists
+- `scripts/collect_real.py` — collects real images from Open Images, COCO, Wikimedia, Flickr
+- `scripts/collect_ai.py` — generates AI images via local Flux (MPS), Replicate, DALL-E 3
+- `scripts/split_val.py` — splits 10% of collected images into validation directories
+- `requirements.txt` — all Python dependencies
+- `.env.example` — copy to `.env` and fill in API keys
+
+### Keys needed
+- `FLICKR_API_KEY` + `FLICKR_API_SECRET` — https://www.flickr.com/services/api/misc.api_keys.html
+- `REPLICATE_API_TOKEN` — https://replicate.com (optional, for cloud generation)
+- `OPENAI_API_KEY` — optional, DALL-E 3 only
 
 ---
 
