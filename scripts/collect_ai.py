@@ -124,13 +124,9 @@ def random_prompt() -> str:
 
 
 # ---------------------------------------------------------------------------
-# Source 1: Local Flux via Apple Silicon MPS
+# Source 1: Local Flux — auto-detects CUDA (Nvidia) or MPS (Apple Silicon)
 # ---------------------------------------------------------------------------
 def collect_local(count: int):
-    print(f"\n[Local Flux] Generating {count} images on Apple Silicon MPS...")
-    print("  This will take a while — roughly 30-60s per image.")
-    print("  Run overnight in batches. Use Ctrl+C to stop safely.\n")
-
     try:
         import torch
         from diffusers import FluxPipeline
@@ -138,18 +134,29 @@ def collect_local(count: int):
         print("diffusers not installed. Run: pip install diffusers transformers accelerate torch")
         return 0
 
-    if not torch.backends.mps.is_available():
-        print("MPS not available. Are you on Apple Silicon?")
+    if torch.cuda.is_available():
+        device     = "cuda"
+        dtype      = torch.bfloat16  # bfloat16 is faster on Nvidia Ampere/Ada (30xx/40xx)
+        speed_note = "~2-4s/image on 4090"
+    elif torch.backends.mps.is_available():
+        device     = "mps"
+        dtype      = torch.float16
+        speed_note = "~30-60s/image on Apple Silicon"
+    else:
+        print("[Local Flux] No GPU found (CUDA or MPS required). Use --source replicate instead.")
         return 0
 
+    print(f"\n[Local Flux] Generating {count} images on {device.upper()} ({speed_note})...")
     print("  Loading Flux model (first run downloads ~24GB — be patient)...")
+
     try:
         pipe = FluxPipeline.from_pretrained(
-            "black-forest-labs/FLUX.1-schnell",  # schnell = fast, good quality
-            torch_dtype=torch.float16,
+            "black-forest-labs/FLUX.1-schnell",
+            torch_dtype=dtype,
         )
-        pipe = pipe.to("mps")
-        pipe.enable_attention_slicing()  # reduces peak memory on MPS
+        pipe = pipe.to(device)
+        if device == "mps":
+            pipe.enable_attention_slicing()
     except Exception as e:
         print(f"  Failed to load Flux: {e}")
         return 0
