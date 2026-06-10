@@ -226,6 +226,23 @@ def _wiki_query(params):
     resp.raise_for_status()
     return resp.json()
 
+
+def _wiki_fetch(url: str) -> bool:
+    """Wikimedia throttles parallel downloads hard (HTTP 429) — fetch
+    sequentially and honor Retry-After with backoff."""
+    for attempt in range(4):
+        try:
+            resp = requests.get(url, timeout=30, headers=UA)
+            if resp.status_code == 429:
+                wait = resp.headers.get("Retry-After")
+                time.sleep(min(int(wait) if wait and wait.isdigit() else 5 * (attempt + 1), 60))
+                continue
+            resp.raise_for_status()
+            return save_original(resp.content, "wiki")
+        except Exception:
+            time.sleep(2)
+    return False
+
 def _wiki_file_urls(titles):
     """Batched imageinfo lookup (50 titles/request). Returns list of URLs,
     using a 2048px thumb render when the original is larger than that."""
@@ -296,14 +313,13 @@ def collect_wikimedia(limit: int):
         random.shuffle(titles)
         urls = _wiki_file_urls(titles[: int(root_target * 1.5)])
         got = 0
-        with ThreadPoolExecutor(max_workers=4) as ex:
-            futures = [ex.submit(fetch_and_save, u, "wiki") for u in urls]
-            for fut in tqdm(as_completed(futures), total=len(futures), desc=f"  {root[:35]}"):
-                if fut.result():
-                    saved += 1
-                    got += 1
-                    if got >= root_target:
-                        break
+        for u in tqdm(urls, desc=f"  {root[:35]}"):
+            if _wiki_fetch(u):
+                saved += 1
+                got += 1
+                if got >= root_target:
+                    break
+            time.sleep(0.3)  # stay under Wikimedia's per-IP rate limit
         print(f"  [{root}] saved {got}")
 
     print(f"[Wikimedia] Saved {saved} images.")
