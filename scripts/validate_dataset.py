@@ -92,9 +92,18 @@ SCENE_CATEGORIES = [
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+IMG_EXTS = ("*.jpg", "*.jpeg", "*.png", "*.webp")
+
+def glob_images(directory: Path):
+    paths = []
+    for pat in IMG_EXTS:
+        paths.extend(directory.glob(pat))
+    return paths
+
+
 def load_images(directory: Path, limit: int = 2000):
     """Load up to `limit` images from a directory, return list of (path, PIL image)."""
-    paths = list(directory.glob("*.jpg")) + list(directory.glob("*.png"))
+    paths = glob_images(directory)
     random.shuffle(paths)
     paths = paths[:limit]
     images = []
@@ -122,13 +131,21 @@ def image_stats(img: Image.Image) -> dict:
 
 def source_from_filename(name: str) -> str:
     """Infer collection source from filename prefix."""
-    if name.startswith("oi_"):       return "open_images"
-    if name.startswith("coco_"):     return "coco"
-    if name.startswith("wiki_"):     return "wikimedia"
-    if name.startswith("flickr_"):   return "flickr"
-    if name.startswith("flux_"):     return "flux_local"
-    if name.startswith("replicate_"): return "replicate"
-    if name.startswith("dalle"):     return "dalle3"
+    if name.startswith("oi_"):           return "open_images"
+    if name.startswith("coco_"):         return "coco"
+    if name.startswith("wiki_"):         return "wikimedia"
+    if name.startswith("unsplash_"):     return "unsplash"
+    if name.startswith("pexels_"):       return "pexels"
+    if name.startswith("cfreal_"):       return "community_forensics_real"
+    if name.startswith("flickr_"):       return "flickr"
+    if name.startswith("flux_schnell_"): return "flux_schnell"
+    if name.startswith("flux_dev_"):     return "flux_dev"
+    if name.startswith("flux_"):         return "flux_local"
+    if name.startswith("cf_"):           return "community_forensics"
+    if name.startswith("rep_"):          return "replicate"
+    if name.startswith("replicate_"):    return "replicate"
+    if name.startswith("gptimg_"):       return "gpt_image_1"
+    if name.startswith("dalle"):         return "dalle3"
     return "unknown"
 
 
@@ -142,7 +159,7 @@ def check_counts():
 
     for label, directory in [("real", REAL_DIR), ("ai", AI_DIR),
                                ("val_real", VAL_REAL), ("val_ai", VAL_AI)]:
-        count = len(list(directory.glob("*.jpg"))) + len(list(directory.glob("*.png")))
+        count = len(glob_images(directory))
         results[label] = count
         status = "✓" if count > 0 else "✗ EMPTY"
         print(f"  {label:<12}: {count:>6} images  {status}")
@@ -171,7 +188,7 @@ def check_counts():
 def check_source_balance():
     print("\n── 2. Source Balance ───────────────────────────────────────")
     for label, directory in [("real", REAL_DIR), ("ai", AI_DIR)]:
-        paths   = list(directory.glob("*.jpg"))
+        paths   = glob_images(directory)
         sources = Counter(source_from_filename(p.stem) for p in paths)
         total   = sum(sources.values())
         if total == 0:

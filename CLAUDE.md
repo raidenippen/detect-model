@@ -26,45 +26,97 @@ backend. No changes to the extension are required — the API response shape sta
 
 ---
 
-## Target Architecture
+## Target Architecture (revised after Jun 2026 audit)
 
-1. **Base model**: Fine-tuned ViT (Vision Transformer) or CLIP — to be decided after initial experiments
-2. **Training data**: ~20,000–50,000 labeled images (AI vs real), weighted toward hard real negatives
-3. **Inference**: Hosted on existing Render Standard instance (detect-inference service)
-4. **API shape**: Must return `{ isAI, confidence, verdict, flagCount, signals }` — same as current
+1. **Base model**: ViT-S/16 (ImageNet-21k pretrained), or the Community Forensics released
+   checkpoint if it benchmarks well on our hard negatives. **NOT NYUAD** — that model is a
+   ViT-base (86M params, ~330MB fp32, violates our own size constraint) whose narrow 3-class
+   fine-tune we would overwrite anyway. NYUAD stays as a benchmark + ensemble signal only.
+2. **Training data**: generator-diverse AI set (CommunityForensics-Small backbone + our own
+   2025-era generations) vs. hard-real-negative-weighted real set. Details below.
+3. **Inference**: ONNX Runtime, int8 dynamic quantization, on existing Render Standard instance.
+   ViT-S/16 int8 is ~22MB and ~50–150ms/image on CPU — well within budget.
+4. **API shape**: Must return `{ isAI, confidence, verdict, flagCount, signals }` — same as current.
+   Confidence must be **calibrated** (temperature scaling) before it's surfaced to users.
+
+---
+
+## Data Policy (non-negotiable — this is what the Jun 2026 audit fixed)
+
+1. **Save originals. Never resize or re-encode at collection time.** The old pipeline squashed
+   everything to 384×384 JPEG q90 — since AI images are born square and real photos aren't,
+   aspect-ratio distortion became a class label, and uniform re-encoding masked the compression-
+   history differences the model must learn to ignore. That data is quarantined in
+   `data/real_legacy_384/` (9,505 images). **Do not train on it.**
+2. **Degradation augmentation at training time, applied identically to both classes**: random
+   JPEG quality 40–95, random down/upscale, WebP recode, random crop (never aspect squash),
+   slight blur/noise. Production images arrive through CDN/social-media recompression; a model
+   trained only on clean images will collapse in the wild.
+3. **Generator diversity beats volume** (Community Forensics, arXiv:2411.04125): many generators
+   with a per-generator cap, not many images from 2–3 generators. Pre-2024 generators
+   (DiffusionDB-era SD 1.x, JourneyDB MJ v5) capped at ≲25% of the AI class.
+4. **Hard real negatives are the priority**: professional/polished photography (concerts, bokeh
+   portraits, product shots) — the FP failure mode this project exists to fix. COCO/Open Images
+   are consumer-photo diversity slices, not the backbone.
 
 ---
 
 ## Current Status
 
-**Phase: Step 1 in progress — real image collection running.**
+**Phase: data re-collection after audit. Eval harness exists; no training code yet (intentional —
+data + eval come first).**
 
-### What exists
-- `scripts/collect_real.py` — collects real images from Open Images, COCO, Wikimedia, Flickr
-- `scripts/collect_ai.py` — generates AI images via local Flux (CUDA/MPS), Replicate, DALL-E 3
-- `scripts/split_val.py` — splits 10% of collected images into validation directories
-- `scripts/validate_dataset.py` — checks diversity, duplicates, statistics, scene coverage
-- `requirements.txt` — all Python dependencies
-- `.env.example` — copy to `.env` and fill in API keys
+### Scripts
+- `scripts/collect_real.py` — real images, originals saved untouched.
+  Sources: Unsplash Lite (25k curated pro photos, no key), Pexels (free key), Wikimedia
+  (recursive traversal of Quality/Featured images — the old version hit top-level categories
+  with `cmtype=file` and collected **6 images total**; fixed), Open Images, COCO. Flickr dropped.
+- `scripts/collect_ai.py` — AI images saved as lossless PNG at native resolution, varied aspect
+  ratios. Local Flux schnell+dev (CUDA/MPS auto-detect), Replicate (flux-dev, flux-1.1-pro,
+  SD 3.5, Ideogram v2, Recraft v3), OpenAI gpt-image-1/DALL-E 3. Combinatorial prompt bank
+  (~100k+ unique prompts).
+- `scripts/collect_community_forensics.py` — streams a generator-stratified subset of
+  CommunityForensics-Small (HF: OwensLab/CommunityForensics-Small) into `data/ai/`
+  (optionally paired reals into `data/real/`). This is the AI-class backbone.
+- `scripts/split_val.py` — near-duplicate-cluster-aware 10% val split (phash + union-find).
+  The val set is FROZEN once training starts.
+- `scripts/benchmark_baselines.py` — runs NYUAD + the extension's current models over
+  val_real / val_ai / hard_negatives, clean **and** degraded (JPEG-70, half-res). This is the
+  bar to beat. Run it before training anything.
+- `scripts/validate_dataset.py` — diversity/duplicate/statistics checks.
 
-### Real image collection status (as of Jun 2026)
-| Source | Status | Count |
-|--------|--------|-------|
-| COCO | ✅ Done | 3,751 |
-| Open Images | ✅ Done | 5,748 |
-| Wikimedia | 🔄 Running | ~3,500 target |
-| **Total** | | **~13,000** |
+### Data directories
+```
+data/
+  real/             # real photos, ORIGINAL bytes (jpg/png/webp)
+  ai/               # AI images, lossless PNG at native generation size
+  val_real/         # frozen held-out validation (cluster-aware split)
+  val_ai/
+  hard_negatives/   # MANUALLY CURATED: the actual concert photos / polished
+                    # portraits that FP'd on current models. Never trained on.
+                    # >>> needs populating — copy the known failure images here <<<
+  real_legacy_384/  # quarantined squashed data from old pipeline. Do not train on.
+```
 
-Flickr dropped — commercial API approval required, not worth the friction.
+### Collection status (as of 10 Jun 2026)
+| Set | Source | Status | Target |
+|-----|--------|--------|--------|
+| real | Unsplash Lite | ❌ not started | ~8,000 |
+| real | Pexels | ❌ not started (needs free key) | ~4,000 |
+| real | Wikimedia (recursive) | ❌ not started | ~5,000 |
+| real | COCO + Open Images | ❌ re-collect (originals this time) | ~5,000 |
+| ai | CommunityForensics-Small | ❌ not started | ~20,000 across 500+ generators |
+| ai | Local Flux schnell+dev | ❌ not started (4090 box) | ~5,000 |
+| ai | Replicate (5 commercial models) | ❌ not started (~$50) | ~1,500 |
+| ai | gpt-image-1 | ❌ not started | ~300 |
 
-### AI image collection status
-- Not started. Run on the Windows 4090 machine.
-- Script auto-detects CUDA — no code changes needed.
-- Target: 7,500–10,000 images via local Flux (free).
+Old collection (COCO 3,751 + OI 5,748 + wiki 6, all squashed 384) is in `data/real_legacy_384/`.
 
-### Keys needed
-- `REPLICATE_API_TOKEN` — https://replicate.com (optional top-up)
-- `OPENAI_API_KEY` — optional, DALL-E 3 only
+### Keys needed (.env)
+- `PEXELS_API_KEY` — free, https://www.pexels.com/api/
+- `HF_TOKEN` — only if CommunityForensics-Small gates access
+- `REPLICATE_API_TOKEN` — ~$50 budget for commercial-generator batches
+- `OPENAI_API_KEY` — optional, gpt-image-1
 
 ### Setup (on any machine)
 ```bash
@@ -80,72 +132,79 @@ cp .env.example .env
 
 ## Next Steps (in order)
 
-### Step 1 — Data collection scripts
-Write Python scripts to collect labeled training data:
+### Step 0 — Populate `data/hard_negatives/` (manual, blocking)
+Copy the actual images that triggered this project (real concert photos scoring ~99% AI on
+commfor/haywood/ateeqq) plus ~50–200 similar curated hard cases. Everything downstream is
+measured against this set.
 
-**Real images (target: 15,000–25,000):**
-- Unsplash API (free, CC0) — prioritize hard cases: concerts, portraits with bokeh, professional
-  product photography, heavily post-processed images. These are exactly what current models fail on.
-- LAION or COCO subsets for volume and diversity
-- Script should download, resize to 384×384, save as JPEG quality 90, label as `real`
-
-**AI images (target: 15,000–25,000):**
-- Replicate API (Flux, Stable Diffusion XL) — cheapest, ~$0.003/image
-- DALL-E 3 via OpenAI API — ~$0.04/image, use sparingly for diversity
-- Prompts should be diverse: portraits, landscapes, concerts, product shots, abstract
-  — specifically include prompts that mimic the hard real-photo cases
-- Script should save images labeled as `ai`
-
-**Output structure:**
+### Step 1 — Re-collect data (scripts ready)
+```bash
+python scripts/collect_real.py --source unsplash --limit 8000
+python scripts/collect_real.py --source pexels --limit 4000
+python scripts/collect_real.py --source wikimedia --limit 5000
+python scripts/collect_real.py --source coco --limit 2500
+python scripts/collect_real.py --source open_images --limit 2500
+python scripts/collect_community_forensics.py --limit 20000 --per-generator 40
+# on the 4090 box:
+python scripts/collect_ai.py --source local --model both --count 5000
+python scripts/collect_ai.py --source replicate --count 1500
+python scripts/collect_ai.py --source openai --count 300
 ```
-data/
-  real/       # real photos
-  ai/         # AI-generated images
-  val_real/   # held-out validation set (10% of real)
-  val_ai/     # held-out validation set (10% of AI)
-```
+Then `python scripts/validate_dataset.py` and `python scripts/split_val.py`.
 
-**APIs needed:**
-- Unsplash API key: https://unsplash.com/developers (free)
-- Replicate API key: https://replicate.com (paid, ~$0.003/image for Flux)
-- OpenAI API key: optional, for DALL-E 3 diversity
+### Step 2 — Baseline benchmark (before any training)
+`python scripts/benchmark_baselines.py` — confirms the FP problem on hard_negatives, measures
+degradation robustness, and gives the bar to beat. If the Community Forensics released
+checkpoint already performs well here, fine-tune from it instead of vanilla ViT-S.
 
-### Step 2 — EDA and baseline
-- Check class balance, image size distribution
-- Run existing HF models (commfor, haywood, ateeqq) against the validation set to confirm FP rates
-- This gives a benchmark to beat
-
-### Step 3 — Fine-tuning pipeline
-- Fine-tune ViT-small or CLIP ViT-B/32 on the training set
-- Use PyTorch + HuggingFace Transformers
-- Train on cloud GPU: RunPod or Lambda Labs (~$50–200 one-time)
-- Target: FP rate < 5% on hard real negatives, TP rate > 90% on current AI generators
+### Step 3 — Fine-tuning pipeline (not yet written)
+- ViT-S/16, full fine-tune (don't freeze layers by default), lr 1e-5–5e-5, cosine schedule,
+  5–10 epochs, with the degradation augmentation from the Data Policy applied to both classes.
+- Before training, run the leakage probe: a small classifier trained to distinguish real
+  *sources* from each other (COCO vs Unsplash etc.) — if low-level stats separate sources
+  easily, the detector can shortcut; fix the data, don't proceed.
+- Train on cloud GPU (RunPod / Lambda, ~$50–200) or the 4090 box.
+- Targets: **FPR ≤ 2% on hard_negatives (clean and jpeg70_half)**, TPR ≥ 90% on val_ai,
+  TPR ≥ 80% under jpeg70_half degradation.
 
 ### Step 4 — Evaluation
-- Measure per-class accuracy, FP rate, FN rate on held-out validation set
-- Specifically test against the known failure case: concert photo, polished portrait, product photography
-- Compare against Hive API results on same images as a quality bar
+- Leave-one-generator-out on the AI class; leave-one-source-out on the real class.
+- Full degradation suite on everything (benchmark_baselines.py degradations).
+- Temperature-scale the confidence on held-out data; pick the operating threshold for the FPR
+  target, not max accuracy; define an "uncertain" verdict band around the threshold.
+- Compare against Hive API on the same images as a quality bar.
 
 ### Step 5 — Integration
-- Export model to ONNX or keep as PyTorch
-- Drop into existing `space/app.py` in the detect repo as a new pipeline
-- Replace commfor/haywood/ateeqq with this model
-- Keep NYUAD as a secondary signal (it performed well on the concert FP case)
-- Keep C2PA as primary override signal
+- Export to ONNX, int8 dynamic quantization, benchmark on a Render-sized CPU.
+- Cap input image dimensions before decode (large PNGs can OOM a 2GB instance).
+- Drop into `space/app.py` in the detect repo; replace commfor/haywood/ateeqq.
+- Keep NYUAD as a secondary signal; keep C2PA as primary override.
 
-### Step 6 — Retraining cadence
-- Retrain every 3–4 months as new AI generators release
-- Add new generator outputs to `data/ai/` and rerun from Step 3
-- Keep validation set stable so metrics are comparable across versions
+### Step 6 — Retraining cadence + production monitoring
+- Retrain every 3–4 months as new generators release; add their outputs to `data/ai/`.
+- Keep the validation set and hard_negatives frozen so metrics are comparable across versions.
+- Log production score distributions and watch for drift (a new Flux-class release tanks
+  recall silently between retrains).
+
+---
+
+## Known Structural Gaps vs Commercial APIs
+
+Heavily degraded images, partial AI edits (inpainting/generative fill/upscaling), and
+adversarial evasion. Each has a phased mitigation plan — including the degradation
+ladder, the partial-AI verdict taxonomy, and the tiered adversarial threat model —
+in **[docs/ROBUSTNESS.md](docs/ROBUSTNESS.md)**. Read it before writing `train.py`:
+several v1 items (degradation chains via a shared `scripts/degrade.py`, consistency
+loss, upscaled-reals augmentation, FGSM-lite) live inside the training pipeline.
 
 ---
 
 ## Constraints
 
 - Final model must run on Render Standard (~2GB RAM, no GPU)
-- Inference time budget: < 2 seconds per image
-- ViT-small is ~22M params and fits comfortably; ViT-base is borderline
-- Do not use ViT-large or any model > 300MB
+- Inference time budget: < 2 seconds per image (ViT-S/16 int8 ONNX: ~50–150ms)
+- Model size < 300MB on disk (ViT-S int8 ≈ 22MB — large headroom is intentional)
+- RAM, not latency, is the real constraint — bound image decode size
 
 ---
 
@@ -162,5 +221,13 @@ The Chrome extension + backend that will consume this model:
 
 - **Own the model** rather than pay per-scan API (Hive $0.006/image doesn't work at $10/month Pro)
 - **Hard real negatives are the priority** — the failure mode is FP on polished photography, not FN on AI
-- **NYUAD stays** as a secondary signal — its 3-class architecture performed well on the FP case
+- **NYUAD demoted from base model to benchmark/ensemble signal** (Jun 2026 audit): it's an
+  oversized ViT-base whose fine-tune we'd overwrite; its concert-photo win was n=1 evidence
+- **CommunityForensics-Small is the AI-class backbone**; DiffusionDB/JourneyDB demoted to a
+  ≲25% legacy slice — 2022–2023-era generators don't represent what users scan in 2026
+- **Originals only, degradation as training-time augmentation** — collection-time re-encoding
+  created label-correlated artifacts (see Data Policy)
+- **Eval harness before training code** — frozen hard-negative set, degradation suite,
+  leave-one-generator-out, calibrated confidence
+- **NYUAD stays** as a secondary signal in the extension ensemble
 - **C2PA stays** as a hard override — cryptographic provenance beats any classifier
