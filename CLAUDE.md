@@ -37,21 +37,44 @@ backend. No changes to the extension are required — the API response shape sta
 
 ## Current Status
 
-**Phase: Step 1 in progress — data collection scripts written, not yet run.**
-
-Scripts are written. Next action: install dependencies, add API keys to `.env`, run collection.
+**Phase: Step 1 in progress — real image collection running.**
 
 ### What exists
 - `scripts/collect_real.py` — collects real images from Open Images, COCO, Wikimedia, Flickr
-- `scripts/collect_ai.py` — generates AI images via local Flux (MPS), Replicate, DALL-E 3
+- `scripts/collect_ai.py` — generates AI images via local Flux (CUDA/MPS), Replicate, DALL-E 3
 - `scripts/split_val.py` — splits 10% of collected images into validation directories
+- `scripts/validate_dataset.py` — checks diversity, duplicates, statistics, scene coverage
 - `requirements.txt` — all Python dependencies
 - `.env.example` — copy to `.env` and fill in API keys
 
+### Real image collection status (as of Jun 2026)
+| Source | Status | Count |
+|--------|--------|-------|
+| COCO | ✅ Done | 3,751 |
+| Open Images | ✅ Done | 5,748 |
+| Wikimedia | 🔄 Running | ~3,500 target |
+| **Total** | | **~13,000** |
+
+Flickr dropped — commercial API approval required, not worth the friction.
+
+### AI image collection status
+- Not started. Run on the Windows 4090 machine.
+- Script auto-detects CUDA — no code changes needed.
+- Target: 7,500–10,000 images via local Flux (free).
+
 ### Keys needed
-- `FLICKR_API_KEY` + `FLICKR_API_SECRET` — https://www.flickr.com/services/api/misc.api_keys.html
-- `REPLICATE_API_TOKEN` — https://replicate.com (optional, for cloud generation)
+- `REPLICATE_API_TOKEN` — https://replicate.com (optional top-up)
 - `OPENAI_API_KEY` — optional, DALL-E 3 only
+
+### Setup (on any machine)
+```bash
+git clone https://github.com/raidenippen/detect-model
+cd detect-model
+python3 -m venv venv
+source venv/bin/activate   # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+cp .env.example .env
+```
 
 ---
 
