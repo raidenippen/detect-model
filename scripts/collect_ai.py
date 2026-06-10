@@ -205,11 +205,26 @@ def collect_local(count: int, model: str):
         print(f"\n[Local Flux-{variant}] Generating {n} images on {device.upper()} "
               f"({steps} steps — dev is ~7x slower than schnell)...")
         try:
-            pipe = FluxPipeline.from_pretrained(repo, torch_dtype=dtype).to(device)
-            if device == "mps":
-                pipe.enable_attention_slicing()
+            pipe = FluxPipeline.from_pretrained(repo, torch_dtype=dtype)
+            if device == "cuda":
+                vram_gb = torch.cuda.get_device_properties(0).total_memory / 1e9
+                if vram_gb < 30:
+                    # Flux (12B transformer + T5-XXL) does not fit a 24GB card
+                    # fully resident — offload swaps components to system RAM.
+                    print(f"  {vram_gb:.0f}GB VRAM — using model CPU offload")
+                    pipe.enable_model_cpu_offload()
+                else:
+                    pipe = pipe.to(device)
+            else:
+                pipe = pipe.to(device)
+                if device == "mps":
+                    pipe.enable_attention_slicing()
         except Exception as e:
             print(f"  Failed to load {repo}: {e}")
+            if variant == "dev":
+                print("  NOTE: FLUX.1-dev is a gated model. Accept the license at")
+                print("  https://huggingface.co/black-forest-labs/FLUX.1-dev and run:")
+                print("    hf auth login")
             continue
 
         saved = 0
