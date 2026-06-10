@@ -227,37 +227,46 @@ def collect_coco(limit: int, dest_dir: Path):
 def collect_wikimedia(limit: int, dest_dir: Path):
     print(f"\n[Wikimedia] Downloading up to {limit} images...")
 
-    BASE   = "https://commons.wikimedia.org/w/api.php"
-    saved  = 0
+    BASE    = "https://commons.wikimedia.org/w/api.php"
+    # Wikimedia requires a descriptive User-Agent — anonymous requests are blocked
+    HEADERS = {
+        "User-Agent": "detect-model/1.0 (ML training dataset; https://github.com/raidenippen/detect-model)"
+    }
+    saved   = 0
     per_cat = max(1, limit // len(WIKIMEDIA_CATEGORIES))
 
     for category in WIKIMEDIA_CATEGORIES:
         if saved >= limit:
             break
         params = {
-            "action":       "query",
-            "list":         "categorymembers",
-            "cmtitle":      f"Category:{category}",
-            "cmtype":       "file",
-            "cmlimit":      per_cat,
-            "format":       "json",
+            "action":  "query",
+            "list":    "categorymembers",
+            "cmtitle": f"Category:{category}",
+            "cmtype":  "file",
+            "cmlimit": per_cat,
+            "format":  "json",
         }
         try:
-            resp = requests.get(BASE, params=params, timeout=15)
+            resp    = requests.get(BASE, params=params, headers=HEADERS, timeout=15)
+            resp.raise_for_status()
             members = resp.json().get("query", {}).get("categorymembers", [])
             titles  = [m["title"] for m in members]
+            if not titles:
+                print(f"  [Wikimedia] No files found in category: {category}")
+                continue
 
             for title in tqdm(titles, desc=f"  {category}", leave=False):
                 if saved >= limit:
                     break
                 try:
-                    info_resp = requests.get(BASE, params={
-                        "action":    "query",
-                        "titles":    title,
-                        "prop":      "imageinfo",
-                        "iiprop":    "url|mime",
-                        "format":    "json",
+                    info_resp = requests.get(BASE, headers=HEADERS, params={
+                        "action":  "query",
+                        "titles":  title,
+                        "prop":    "imageinfo",
+                        "iiprop":  "url|mime",
+                        "format":  "json",
                     }, timeout=15)
+                    info_resp.raise_for_status()
                     pages = info_resp.json()["query"]["pages"]
                     for page in pages.values():
                         ii   = page.get("imageinfo", [{}])[0]
@@ -268,6 +277,7 @@ def collect_wikimedia(limit: int, dest_dir: Path):
                         name = f"wiki_{hashlib.md5(url.encode()).hexdigest()}"
                         if fetch_and_save(url, dest_dir, name):
                             saved += 1
+                    time.sleep(0.1)  # be polite to Wikimedia API
                 except Exception:
                     continue
         except Exception as e:
