@@ -63,8 +63,8 @@ backend. No changes to the extension are required — the API response shape sta
 
 ## Current Status
 
-**Phase: data re-collection after audit. Eval harness exists; no training code yet (intentional —
-data + eval come first).**
+**Phase: data re-collection in progress. Training pipeline written and smoke-tested end-to-end;
+waiting on data.**
 
 ### Scripts
 - `scripts/collect_real.py` — real images, originals saved untouched.
@@ -84,6 +84,16 @@ data + eval come first).**
   val_real / val_ai / hard_negatives, clean **and** degraded (JPEG-70, half-res). This is the
   bar to beat. Run it before training anything.
 - `scripts/validate_dataset.py` — diversity/duplicate/statistics checks.
+- `scripts/degrade.py` — THE shared degradation library (random chains for training,
+  deterministic platform presets for eval). Single implementation, used everywhere.
+- `scripts/train.py` — full fine-tuning pipeline: crop-not-squash views, degradation
+  chains on both classes, clean/degraded consistency loss (KL), FGSM-lite adversarial
+  batches, class-balanced sampling, then temperature scaling + operating threshold that
+  must satisfy the FPR target on val_real AND hard_negatives. Outputs HF model dir +
+  `inference_config.json` (temperature/threshold/uncertain band).
+- `scripts/leakage_probe.py` — go/no-go gate, run BEFORE training: (1) are real sources
+  separable from low-level stats? (2) is real-vs-AI separable from 12 trivial stats?
+  Either WARN means fix the data, not proceed.
 
 ### Data directories
 ```
@@ -157,13 +167,16 @@ Then `python scripts/validate_dataset.py` and `python scripts/split_val.py`.
 degradation robustness, and gives the bar to beat. If the Community Forensics released
 checkpoint already performs well here, fine-tune from it instead of vanilla ViT-S.
 
-### Step 3 — Fine-tuning pipeline (not yet written)
-- ViT-S/16, full fine-tune (don't freeze layers by default), lr 1e-5–5e-5, cosine schedule,
-  5–10 epochs, with the degradation augmentation from the Data Policy applied to both classes.
-- Before training, run the leakage probe: a small classifier trained to distinguish real
-  *sources* from each other (COCO vs Unsplash etc.) — if low-level stats separate sources
-  easily, the detector can shortcut; fix the data, don't proceed.
-- Train on cloud GPU (RunPod / Lambda, ~$50–200) or the 4090 box.
+### Step 3 — Fine-tuning (pipeline written: scripts/train.py)
+```bash
+python scripts/leakage_probe.py            # MUST pass before spending GPU time
+python scripts/train.py --epochs 8 --batch-size 64   # on the 4090 or cloud GPU
+# different base: --base <hf-id-or-local-dir> (e.g. Community Forensics checkpoint)
+```
+- Defaults encode the plan: ViT-S/16 full fine-tune, lr 3e-5 cosine, degradation chains
+  (prob 0.7) on both classes, consistency weight 1.0, FGSM on 15% of batches, target FPR 2%.
+- Train on cloud GPU (RunPod / Lambda, ~$50–200) or the 4090 box. CPU/MPS work for smoke
+  tests only.
 - Targets: **FPR ≤ 2% on hard_negatives (clean and jpeg70_half)**, TPR ≥ 90% on val_ai,
   TPR ≥ 80% under jpeg70_half degradation.
 
