@@ -119,7 +119,8 @@ def collect_unsplash(limit: int):
     urls = []
     try:
         with zipfile.ZipFile(zip_path) as z:
-            tsv_names = [n for n in z.namelist() if n.startswith("photos.tsv")]
+            # the archive ships "photos.csv000" — tab-delimited despite the name
+            tsv_names = [n for n in z.namelist() if n.startswith("photos.")]
             for tsv_name in tsv_names:
                 with z.open(tsv_name) as f:
                     reader = csv.DictReader(io.TextIOWrapper(f, encoding="utf-8"), delimiter="\t")

@@ -42,6 +42,11 @@ try:
 except ImportError:
     pass
 
+# An empty HF_TOKEN= line in .env crashes huggingface_hub with an illegal
+# "Bearer " header — treat empty as absent.
+if not os.environ.get("HF_TOKEN"):
+    os.environ.pop("HF_TOKEN", None)
+
 ROOT     = Path(__file__).parent.parent / "data"
 AI_DIR   = ROOT / "ai"
 REAL_DIR = ROOT / "real"
