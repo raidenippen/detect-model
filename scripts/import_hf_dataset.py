@@ -87,7 +87,33 @@ def main():
     p.add_argument("--per-key", type=int, default=None)
     p.add_argument("--key-filter", default=None,
                    help="Only rows whose __key__ contains this substring")
+    p.add_argument("--photo-filter", action="store_true",
+                   help="Keep only photographic-style images (CLIP zero-shot gate). "
+                        "Used to rebalance the AI class, which skews heavily "
+                        "artistic vs the ~73%%-photographic real class.")
     args = p.parse_args()
+
+    photo_gate = None
+    if args.photo_filter:
+        import torch
+        from transformers import CLIPProcessor, CLIPModel
+        device = ("cuda" if torch.cuda.is_available()
+                  else "mps" if torch.backends.mps.is_available() else "cpu")
+        clip_model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32").to(device).eval()
+        clip_proc = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+        gate_labels = ["a photograph", "digital art or an illustration",
+                       "an anime or cartoon image", "a 3D render",
+                       "an abstract or surreal image"]
+
+        def photo_gate(img: Image.Image) -> bool:
+            small = img.copy()
+            small.thumbnail((336, 336))
+            inputs = clip_proc(text=gate_labels, images=small,
+                               return_tensors="pt", padding=True)
+            inputs = {k: v.to(device) for k, v in inputs.items()}
+            with torch.no_grad():
+                probs = clip_model(**inputs).logits_per_image.softmax(1)[0]
+            return int(probs.argmax()) == 0
 
     from datasets import load_dataset
     print(f"Streaming {args.dataset}" + (f" [{args.config}]" if args.config else ""))
@@ -130,8 +156,18 @@ def main():
         if stratify and args.per_key and per_key[key] >= args.per_key:
             continue
 
+        value = row[image_col]
+        if photo_gate is not None:
+            try:
+                img = (Image.open(io.BytesIO(value["bytes"] if isinstance(value, dict) else value))
+                       if not isinstance(value, Image.Image) else value)
+                if not photo_gate(img.convert("RGB")):
+                    continue
+            except Exception:
+                continue
+
         name = f"{args.prefix}_{key + '_' if key else ''}{resumed + saved:06d}"
-        if save_value(row[image_col], name):
+        if save_value(value, name):
             saved += 1
             if stratify:
                 per_key[key] += 1

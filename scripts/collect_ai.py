@@ -138,6 +138,28 @@ TEMPLATES = [
                  "an eye close-up", "frost patterns on glass", "a bee on lavender"],
         "detail": ["shallow depth of field", "natural light", "dark background", "backlit"],
     }),
+    # Casual/amateur styles — deceptive AI often mimics ordinary phone photos,
+    # not editorial work. Without these the AI class skews professional.
+    ("casual smartphone photo of {subj}, {detail}", {
+        "subj": ["friends at a barbecue", "a messy desk with a laptop", "a dog on a couch",
+                 "a plate of homemade food", "a parking lot at dusk", "a kid's birthday party",
+                 "a crowded subway car", "a living room with clutter", "a backyard garden",
+                 "groceries on a kitchen counter"],
+        "detail": ["slightly blurry, indoor lighting", "harsh flash photo", "off-center framing",
+                   "taken in a hurry, slightly tilted", "window glare", "dim evening light"],
+    }),
+    ("amateur selfie of {subj}, {detail}", {
+        "subj": ["a young man in a car", "a woman in a bathroom mirror", "two friends at a concert",
+                 "a hiker at a summit", "a student in a dorm room", "a couple at a restaurant"],
+        "detail": ["front camera quality, slightly grainy", "harsh overhead light",
+                   "awkward angle from below", "cropped forehead, casual", "night mode noise"],
+    }),
+    ("snapshot of {subj}, {detail}", {
+        "subj": ["a street corner with parked cars", "a queue outside a shop", "a rainy bus stop",
+                 "a hotel room", "an airport gate", "a half-eaten meal", "a band at a small venue"],
+        "detail": ["mediocre composition, realistic", "phone camera, auto settings",
+                   "slightly overexposed", "motion blur, candid", "fluorescent lighting"],
+    }),
 ]
 
 # Aspect-ratio buckets (Flux/SDXL-friendly). Never a single fixed square.
