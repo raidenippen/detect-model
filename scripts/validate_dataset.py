@@ -146,6 +146,8 @@ def source_from_filename(name: str) -> str:
     if name.startswith("flux_"):         return "flux_local"
     if name.startswith("cf_"):           return "community_forensics"
     if name.startswith("mj_v6_"):        return "midjourney_v6"
+    if name.startswith("mjhq_"):         return "midjourney_hq"
+    if name.startswith("gpt4o_"):        return "gpt4o_sharegpt"
     if name.startswith("dragon_"):       return "dragon"
     if name.startswith("gan_"):          return "gan"
     if name.startswith("rep_"):          return "replicate"
