@@ -63,8 +63,65 @@ backend. No changes to the extension are required — the API response shape sta
 
 ## Current Status
 
-**Phase: data re-collection in progress. Training pipeline written and smoke-tested end-to-end;
-waiting on data.**
+**Phase (11 Jun 2026 pm): ALL GATES COMPLETE. Training next, on a cloud GPU —
+`python scripts/train.py --base OwensLab/commfor-model-224` (loader fixed + smoke-tested).**
+
+Gate results (11 Jun 2026):
+- Val split frozen: 2,297 val_real / 4,400 val_ai (cluster-aware). Never re-split.
+- Leakage probe: probe 2 (real-vs-AI from 12 trivial stats) PASSED (~0.60, no shortcut).
+  Probe 1 (real-source separability) warned at 0.37 vs 0.20 chance — diagnosed as diffuse
+  resolution/frequency-profile differences (COCO 640px vs Unsplash 4k originals), confusion
+  matrix shows no cleanly identifiable source. ACCEPTED: randomized downscale + degradation
+  chains in train.py target exactly this; leave-one-source-out eval (Step 4) is the backstop.
+- Baseline benchmark (full table in `data/validation_report/baselines.json`): the OwensLab
+  Community Forensics checkpoints crush every other baseline. commfor-384: 3.4% hard-neg FPR
+  clean / 1.1% degraded, but val_ai TPR collapses to 47% under jpeg70_half. commfor-224:
+  7.4% / 3.4% hard-neg FPR, TPR 100% clean / 95% jpeg70_half — the better fine-tune base
+  (degradation-robust at the resolution we serve). Ateeqq: 94% hard-neg FPR, 0% hard-positive
+  TPR — remove from the extension ensemble regardless. Caveat: ~40% of val_ai is
+  CommunityForensics data the commfor models trained on, so their val_ai TPR is inflated;
+  trust the hard_positives (94–96%) and hard_negatives numbers.
+- Loader fixes that made this work: the OwensLab checkpoints are timm-format ViT-S/16 with a
+  single sigmoid logit (NOT transformers format). `benchmark_baselines.py` loads them via
+  timm; `train.py` converts them to transformers `ViTForImageClassification` at load time
+  (qkv split, sigmoid head mapped exactly onto a 2-class head as [-z/2,+z/2]; verified
+  numerically equivalent to ~1e-9). NYUAD needs explicit `ViTImageProcessor` under
+  transformers v5. `timm` added to requirements.
+
+Pinterest robustness investigation (11 Jun 2026 pm — user reported the extension missing
+visibly-AI images on Pinterest):
+- Pinterest CDN serves fixed-width WebP renditions (236px feed / 736px closeup) — the
+  harshest mainstream degradation we've measured. Added `pinterest_closeup` and
+  `pinterest_feed` presets to `scripts/degrade.py`; include them in all future evals.
+- At 236px: commfor-384 TPR drops to 75% val_ai / 64% hard_pos. **commfor-224 holds 97% /
+  84%** — further confirmation it's the right fine-tune base. NYUAD never wins under any
+  degradation (18% TPR); its low FPR is under-flagging, not skill.
+- The extension (`detect` repo, space/app.py) squash-resizes to 384×384 instead of the
+  official resize(440)→centercrop(384). Measured both: squash is slightly WORSE on clean
+  (hard-neg FPR 5.1% vs 3.4%, hard-pos TPR 91% vs 96%) but slightly BETTER under
+  pinterest_feed (TPR 81% vs 75%). Net: not the Pinterest culprit, not worth changing —
+  the real fix is the fine-tuned 224 model.
+- Case study: a user-supplied in-the-wild Pinterest miss (MJ-style architecture photo,
+  visibly AI to humans via semantic tells) — commfor-384 0.41 (miss), NYUAD 0.00,
+  Ateeqq 0.00, **commfor-224 0.97 (catch)**, haywood 1.00. Saved as
+  `data/hard_positives/e8f97583ad89ccfe10298f8b63fe7195.webp` — hard_positives is now
+  101 images (was 100 when baselines.json was generated; n=100 rows there).
+- Workflow: in-the-wild misses go into `data/hard_positive_candidates/` (or directly into
+  `data/hard_positives/` for confirmed eval cases, noting the count change). Duplicates
+  collapse in near-dup clustering; one copy per unique image.
+
+**Training hardware (revised 11 Jun 2026 pm):** cloud GPU (RunPod-class, ~$10–20) is the
+default, but the 4090 box is acceptable for training IF it's up and has ~70GB free disk —
+ViT-S/16 @ bs64 fits easily in 24GB, bf16 supported, est. 1–3h for 8 epochs. The dataset is
+58GB, so LAN rsync to the 4090 beats uploading to a cloud pod. Use `--num-workers 8–12`;
+CPU-side decode of large originals is the bottleneck, not the GPU. (The earlier "4090
+retired" note was about not BLOCKING the plan on that box for generation — training on it
+is fine if available.) CPU/MPS remain smoke-test only.
+
+Strategic decision from the Jun 2026 audit chat: the model does not need to beat Hive outright.
+The **cascade architecture** is the hedge — our model answers confident scans for free; scans in
+the calibrated uncertain band escalate to Hive ($0.006/image). Calibration and honest uncertainty
+matter more than raw accuracy; false positives remain the worse failure mode.
 
 ### Scripts
 - `scripts/collect_real.py` — real images, originals saved untouched.
@@ -102,23 +159,29 @@ data/
   ai/               # AI images, lossless PNG at native generation size
   val_real/         # frozen held-out validation (cluster-aware split)
   val_ai/
-  hard_negatives/   # MANUALLY CURATED: the actual concert photos / polished
-                    # portraits that FP'd on current models. Never trained on.
-                    # >>> needs populating — copy the known failure images here <<<
+  hard_negatives/   # MANUALLY CURATED (176): the actual concert photos / polished
+                    # portraits that FP'd on current models. Never trained on. FROZEN.
+  hard_positives/   # MANUALLY CURATED (101): deceptive AI images baselines miss,
+                    # incl. in-the-wild Pinterest misses. Eval only, never trained on.
+                    # (training half of the original candidates went into data/ai/)
+  hard_positive_candidates/   # raw inbox for new in-the-wild misses, curate from here
+  hard_negative_candidates/   # same, for real photos that get false-flagged
   real_legacy_384/  # quarantined squashed data from old pipeline. Do not train on.
 ```
 
-### Collection status (as of 10 Jun 2026)
-| Set | Source | Status | Target |
-|-----|--------|--------|--------|
-| real | Unsplash Lite | ❌ not started | ~8,000 |
-| real | Pexels | ❌ not started (needs free key) | ~4,000 |
-| real | Wikimedia (recursive) | ❌ not started | ~5,000 |
-| real | COCO + Open Images | ❌ re-collect (originals this time) | ~5,000 |
-| ai | CommunityForensics-Small | ❌ not started | ~20,000 across 500+ generators |
-| ai | Local Flux schnell+dev | ❌ not started (4090 box) | ~5,000 |
-| ai | Replicate (5 commercial models) | ❌ not started (~$50) | ~1,500 |
-| ai | gpt-image-1 | ❌ not started | ~300 |
+### Collection status (FINAL, 11 Jun 2026 — collection is done, do not re-collect)
+| Set | Source | Count |
+|-----|--------|-------|
+| real | Unsplash 8k / Pexels / Wikimedia / COCO / Open Images | 22,975 total |
+| ai | CommunityForensics-Small (hundreds of generators) | ~17,100 |
+| ai | Flux family (text-to-image-2M + Flux-1-Dev-Images-1k, public HF datasets) | ~8,500 |
+| ai | DRAGON (25 diffusion models, 2.5k photo-gated) | ~7,500 |
+| ai | Midjourney (v6 raw + MJHQ curated photoreal) | ~6,300 |
+| ai | GPT-4o (ShareGPT-4o-Image) | 4,000 |
+| ai | Hard positives, training half | ~100 |
+
+Optional remaining: ~$20 Replicate batch for commercial-only generators (flux-1.1-pro, Ideogram,
+Recraft) — nice-to-have breadth, not load-bearing, nothing waits on it.
 
 Old collection (COCO 3,751 + OI 5,748 + wiki 6, all squashed 384) is in `data/real_legacy_384/`.
 
@@ -146,6 +209,7 @@ cp .env.example .env
 Copy the actual images that triggered this project (real concert photos scoring ~99% AI on
 commfor/haywood/ateeqq) plus ~50–200 similar curated hard cases. Everything downstream is
 measured against this set.
+(✅ DONE — 176 hard negatives + 101 hard positives curated and frozen.)
 
 ### Step 1 — Re-collect data (scripts ready)
 ```bash
@@ -155,34 +219,39 @@ python scripts/collect_real.py --source wikimedia --limit 5000
 python scripts/collect_real.py --source coco --limit 2500
 python scripts/collect_real.py --source open_images --limit 2500
 python scripts/collect_community_forensics.py --limit 20000 --per-generator 40
-# on the 4090 box:
-python scripts/collect_ai.py --source local --model both --count 5000
-python scripts/collect_ai.py --source replicate --count 1500
-python scripts/collect_ai.py --source openai --count 300
+python scripts/collect_ai.py --source replicate --count 1500   # optional commercial batch only
 ```
 Then `python scripts/validate_dataset.py` and `python scripts/split_val.py`.
+(✅ DONE 11 Jun 2026 — local generation was replaced by public Flux dataset imports via
+`import_hf_dataset.py`; the val split is frozen. Never re-run `split_val.py`.)
 
 ### Step 2 — Baseline benchmark (before any training)
 `python scripts/benchmark_baselines.py` — confirms the FP problem on hard_negatives, measures
 degradation robustness, and gives the bar to beat. If the Community Forensics released
 checkpoint already performs well here, fine-tune from it instead of vanilla ViT-S.
+(✅ DONE 11 Jun 2026 — full table in `data/validation_report/baselines.json`; commfor-224
+chosen as the fine-tune base. See "Gate results" + "Pinterest robustness" in Current Status.)
 
 ### Step 3 — Fine-tuning (pipeline written: scripts/train.py)
 ```bash
-python scripts/leakage_probe.py            # MUST pass before spending GPU time
-python scripts/train.py --epochs 8 --batch-size 64   # on the 4090 or cloud GPU
-# different base: --base <hf-id-or-local-dir> (e.g. Community Forensics checkpoint)
+python scripts/leakage_probe.py            # ✅ run 11 Jun 2026, accepted (see gate results)
+python scripts/train.py --epochs 8 --batch-size 64 --base OwensLab/commfor-model-224 --num-workers 12
 ```
 - Defaults encode the plan: ViT-S/16 full fine-tune, lr 3e-5 cosine, degradation chains
   (prob 0.7) on both classes, consistency weight 1.0, FGSM on 15% of batches, target FPR 2%.
-- Train on cloud GPU (RunPod / Lambda, ~$50–200) or the 4090 box. CPU/MPS work for smoke
-  tests only.
+- `--base OwensLab/commfor-model-224` works as of 11 Jun 2026 (timm→transformers conversion
+  in train.py, smoke-tested end-to-end incl. save/reload/calibration).
+- Hardware: cloud GPU (RunPod / Lambda, ~2–4 GPU-hours, ~$10–20) OR the 4090 box if it's up
+  (see "Training hardware" in Current Status; dataset is 58GB — LAN rsync beats cloud upload).
+  CPU/MPS work for smoke tests only.
 - Targets: **FPR ≤ 2% on hard_negatives (clean and jpeg70_half)**, TPR ≥ 90% on val_ai,
-  TPR ≥ 80% under jpeg70_half degradation.
+  TPR ≥ 80% under jpeg70_half degradation — and report `pinterest_feed` (236px) TPR, the
+  harshest real-world condition we've measured.
 
 ### Step 4 — Evaluation
 - Leave-one-generator-out on the AI class; leave-one-source-out on the real class.
-- Full degradation suite on everything (benchmark_baselines.py degradations).
+- Full degradation suite on everything (benchmark_baselines.py degradations + the
+  degrade.py platform presets, especially `pinterest_feed`).
 - Temperature-scale the confidence on held-out data; pick the operating threshold for the FPR
   target, not max accuracy; define an "uncertain" verdict band around the threshold.
 - Compare against Hive API on the same images as a quality bar.
@@ -191,6 +260,11 @@ python scripts/train.py --epochs 8 --batch-size 64   # on the 4090 or cloud GPU
 - Export to ONNX, int8 dynamic quantization, benchmark on a Render-sized CPU.
 - Cap input image dimensions before decode (large PNGs can OOM a 2GB instance).
 - Drop into `space/app.py` in the detect repo; replace commfor/haywood/ateeqq.
+- Ateeqq can be removed from the extension ensemble immediately, independent of training
+  (94% hard-negative FPR, 0% hard-positive TPR — it only adds false positives).
+- The extension's commfor squash-resize preprocessing was measured (11 Jun 2026): mildly
+  worse on clean, mildly better on Pinterest thumbnails — a wash. Don't bother changing it;
+  the fine-tuned 224 model replaces that path entirely.
 - Keep NYUAD as a secondary signal; keep C2PA as primary override.
 
 ### Step 6 — Retraining cadence + production monitoring

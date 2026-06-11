@@ -1,0 +1,632 @@
+{
+  "Ateeqq/ai-vs-human-image-detector": {
+    "val_real": {
+      "clean": {
+        "n": 300,
+        "mean_ai_score": 0.1094,
+        "FPR": 0.11
+      },
+      "jpeg70": {
+        "n": 300,
+        "mean_ai_score": 0.1397,
+        "FPR": 0.1367
+      },
+      "half": {
+        "n": 300,
+        "mean_ai_score": 0.1347,
+        "FPR": 0.1367
+      },
+      "jpeg70_half": {
+        "n": 300,
+        "mean_ai_score": 0.1267,
+        "FPR": 0.13
+      }
+    },
+    "val_ai": {
+      "clean": {
+        "n": 300,
+        "mean_ai_score": 0.7848,
+        "TPR": 0.7867
+      },
+      "jpeg70": {
+        "n": 300,
+        "mean_ai_score": 0.8062,
+        "TPR": 0.8067
+      },
+      "half": {
+        "n": 300,
+        "mean_ai_score": 0.8415,
+        "TPR": 0.8467
+      },
+      "jpeg70_half": {
+        "n": 300,
+        "mean_ai_score": 0.5313,
+        "TPR": 0.5267
+      }
+    },
+    "hard_negatives": {
+      "clean": {
+        "n": 176,
+        "mean_ai_score": 0.9352,
+        "FPR": 0.9375
+      },
+      "jpeg70": {
+        "n": 176,
+        "mean_ai_score": 0.9233,
+        "FPR": 0.9205
+      },
+      "half": {
+        "n": 176,
+        "mean_ai_score": 0.9366,
+        "FPR": 0.9375
+      },
+      "jpeg70_half": {
+        "n": 176,
+        "mean_ai_score": 0.8818,
+        "FPR": 0.8807
+      }
+    },
+    "hard_positives": {
+      "clean": {
+        "n": 100,
+        "mean_ai_score": 0.0002,
+        "TPR": 0.0
+      },
+      "jpeg70": {
+        "n": 100,
+        "mean_ai_score": 0.0883,
+        "TPR": 0.08
+      },
+      "half": {
+        "n": 100,
+        "mean_ai_score": 0.0224,
+        "TPR": 0.02
+      },
+      "jpeg70_half": {
+        "n": 100,
+        "mean_ai_score": 0.1015,
+        "TPR": 0.1
+      }
+    }
+  },
+  "haywoodsloan/ai-image-detector-deploy": {
+    "val_real": {
+      "clean": {
+        "n": 300,
+        "mean_ai_score": 0.0479,
+        "FPR": 0.04
+      },
+      "jpeg70": {
+        "n": 300,
+        "mean_ai_score": 0.0257,
+        "FPR": 0.0233
+      },
+      "half": {
+        "n": 300,
+        "mean_ai_score": 0.0731,
+        "FPR": 0.0667
+      },
+      "jpeg70_half": {
+        "n": 300,
+        "mean_ai_score": 0.0184,
+        "FPR": 0.0133
+      }
+    },
+    "val_ai": {
+      "clean": {
+        "n": 300,
+        "mean_ai_score": 0.8144,
+        "TPR": 0.81
+      },
+      "jpeg70": {
+        "n": 300,
+        "mean_ai_score": 0.5692,
+        "TPR": 0.5533
+      },
+      "half": {
+        "n": 300,
+        "mean_ai_score": 0.8262,
+        "TPR": 0.8233
+      },
+      "jpeg70_half": {
+        "n": 300,
+        "mean_ai_score": 0.4519,
+        "TPR": 0.4267
+      }
+    },
+    "hard_negatives": {
+      "clean": {
+        "n": 176,
+        "mean_ai_score": 0.3724,
+        "FPR": 0.3693
+      },
+      "jpeg70": {
+        "n": 176,
+        "mean_ai_score": 0.2164,
+        "FPR": 0.2102
+      },
+      "half": {
+        "n": 176,
+        "mean_ai_score": 0.3615,
+        "FPR": 0.3523
+      },
+      "jpeg70_half": {
+        "n": 176,
+        "mean_ai_score": 0.2169,
+        "FPR": 0.2045
+      }
+    },
+    "hard_positives": {
+      "clean": {
+        "n": 100,
+        "mean_ai_score": 0.8119,
+        "TPR": 0.81
+      },
+      "jpeg70": {
+        "n": 100,
+        "mean_ai_score": 0.5788,
+        "TPR": 0.58
+      },
+      "half": {
+        "n": 100,
+        "mean_ai_score": 0.8324,
+        "TPR": 0.84
+      },
+      "jpeg70_half": {
+        "n": 100,
+        "mean_ai_score": 0.4223,
+        "TPR": 0.42
+      }
+    }
+  },
+  "umm-maybe/AI-image-detector": {
+    "val_real": {
+      "clean": {
+        "n": 300,
+        "mean_ai_score": 0.3867,
+        "FPR": 0.3433
+      },
+      "jpeg70": {
+        "n": 300,
+        "mean_ai_score": 0.2163,
+        "FPR": 0.1433
+      },
+      "half": {
+        "n": 300,
+        "mean_ai_score": 0.4299,
+        "FPR": 0.3967
+      },
+      "jpeg70_half": {
+        "n": 300,
+        "mean_ai_score": 0.3674,
+        "FPR": 0.33
+      }
+    },
+    "val_ai": {
+      "clean": {
+        "n": 300,
+        "mean_ai_score": 0.4894,
+        "TPR": 0.48
+      },
+      "jpeg70": {
+        "n": 300,
+        "mean_ai_score": 0.3785,
+        "TPR": 0.3633
+      },
+      "half": {
+        "n": 300,
+        "mean_ai_score": 0.534,
+        "TPR": 0.5133
+      },
+      "jpeg70_half": {
+        "n": 300,
+        "mean_ai_score": 0.5849,
+        "TPR": 0.6133
+      }
+    },
+    "hard_negatives": {
+      "clean": {
+        "n": 176,
+        "mean_ai_score": 0.274,
+        "FPR": 0.1989
+      },
+      "jpeg70": {
+        "n": 176,
+        "mean_ai_score": 0.241,
+        "FPR": 0.1534
+      },
+      "half": {
+        "n": 176,
+        "mean_ai_score": 0.2965,
+        "FPR": 0.2273
+      },
+      "jpeg70_half": {
+        "n": 176,
+        "mean_ai_score": 0.2798,
+        "FPR": 0.2216
+      }
+    },
+    "hard_positives": {
+      "clean": {
+        "n": 100,
+        "mean_ai_score": 0.4866,
+        "TPR": 0.49
+      },
+      "jpeg70": {
+        "n": 100,
+        "mean_ai_score": 0.2986,
+        "TPR": 0.2
+      },
+      "half": {
+        "n": 100,
+        "mean_ai_score": 0.535,
+        "TPR": 0.59
+      },
+      "jpeg70_half": {
+        "n": 100,
+        "mean_ai_score": 0.5601,
+        "TPR": 0.59
+      }
+    }
+  },
+  "Organika/sdxl-detector": {
+    "val_real": {
+      "clean": {
+        "n": 300,
+        "mean_ai_score": 0.1377,
+        "FPR": 0.1433
+      },
+      "jpeg70": {
+        "n": 300,
+        "mean_ai_score": 0.4441,
+        "FPR": 0.46
+      },
+      "half": {
+        "n": 300,
+        "mean_ai_score": 0.1127,
+        "FPR": 0.1133
+      },
+      "jpeg70_half": {
+        "n": 300,
+        "mean_ai_score": 0.2424,
+        "FPR": 0.2433
+      }
+    },
+    "val_ai": {
+      "clean": {
+        "n": 300,
+        "mean_ai_score": 0.6627,
+        "TPR": 0.6733
+      },
+      "jpeg70": {
+        "n": 300,
+        "mean_ai_score": 0.841,
+        "TPR": 0.85
+      },
+      "half": {
+        "n": 300,
+        "mean_ai_score": 0.5759,
+        "TPR": 0.5833
+      },
+      "jpeg70_half": {
+        "n": 300,
+        "mean_ai_score": 0.4869,
+        "TPR": 0.5
+      }
+    },
+    "hard_negatives": {
+      "clean": {
+        "n": 176,
+        "mean_ai_score": 0.4964,
+        "FPR": 0.5
+      },
+      "jpeg70": {
+        "n": 176,
+        "mean_ai_score": 0.4992,
+        "FPR": 0.5057
+      },
+      "half": {
+        "n": 176,
+        "mean_ai_score": 0.4703,
+        "FPR": 0.4716
+      },
+      "jpeg70_half": {
+        "n": 176,
+        "mean_ai_score": 0.595,
+        "FPR": 0.6023
+      }
+    },
+    "hard_positives": {
+      "clean": {
+        "n": 100,
+        "mean_ai_score": 0.5488,
+        "TPR": 0.56
+      },
+      "jpeg70": {
+        "n": 100,
+        "mean_ai_score": 0.7506,
+        "TPR": 0.75
+      },
+      "half": {
+        "n": 100,
+        "mean_ai_score": 0.4608,
+        "TPR": 0.47
+      },
+      "jpeg70_half": {
+        "n": 100,
+        "mean_ai_score": 0.3903,
+        "TPR": 0.37
+      }
+    }
+  },
+  "OwensLab/commfor-model-224": {
+    "val_real": {
+      "clean": {
+        "n": 300,
+        "mean_ai_score": 0.0114,
+        "FPR": 0.0067
+      },
+      "jpeg70": {
+        "n": 300,
+        "mean_ai_score": 0.0065,
+        "FPR": 0.0
+      },
+      "half": {
+        "n": 300,
+        "mean_ai_score": 0.0245,
+        "FPR": 0.0167
+      },
+      "jpeg70_half": {
+        "n": 300,
+        "mean_ai_score": 0.0581,
+        "FPR": 0.0233
+      }
+    },
+    "val_ai": {
+      "clean": {
+        "n": 300,
+        "mean_ai_score": 0.9916,
+        "TPR": 1.0
+      },
+      "jpeg70": {
+        "n": 300,
+        "mean_ai_score": 0.856,
+        "TPR": 0.88
+      },
+      "half": {
+        "n": 300,
+        "mean_ai_score": 0.9933,
+        "TPR": 1.0
+      },
+      "jpeg70_half": {
+        "n": 300,
+        "mean_ai_score": 0.9284,
+        "TPR": 0.9467
+      }
+    },
+    "hard_negatives": {
+      "clean": {
+        "n": 176,
+        "mean_ai_score": 0.0972,
+        "FPR": 0.0739
+      },
+      "jpeg70": {
+        "n": 176,
+        "mean_ai_score": 0.0423,
+        "FPR": 0.0284
+      },
+      "half": {
+        "n": 176,
+        "mean_ai_score": 0.093,
+        "FPR": 0.0625
+      },
+      "jpeg70_half": {
+        "n": 176,
+        "mean_ai_score": 0.0451,
+        "FPR": 0.0341
+      }
+    },
+    "hard_positives": {
+      "clean": {
+        "n": 100,
+        "mean_ai_score": 0.9265,
+        "TPR": 0.94
+      },
+      "jpeg70": {
+        "n": 100,
+        "mean_ai_score": 0.7831,
+        "TPR": 0.78
+      },
+      "half": {
+        "n": 100,
+        "mean_ai_score": 0.9316,
+        "TPR": 0.94
+      },
+      "jpeg70_half": {
+        "n": 100,
+        "mean_ai_score": 0.8123,
+        "TPR": 0.8
+      }
+    }
+  },
+  "NYUAD-ComNets/NYUAD_AI-generated_images_detector": {
+    "val_real": {
+      "clean": {
+        "n": 300,
+        "mean_ai_score": 0.0365,
+        "FPR": 0.0267
+      },
+      "jpeg70": {
+        "n": 300,
+        "mean_ai_score": 0.0334,
+        "FPR": 0.0233
+      },
+      "half": {
+        "n": 300,
+        "mean_ai_score": 0.0348,
+        "FPR": 0.0233
+      },
+      "jpeg70_half": {
+        "n": 300,
+        "mean_ai_score": 0.0243,
+        "FPR": 0.02
+      }
+    },
+    "val_ai": {
+      "clean": {
+        "n": 300,
+        "mean_ai_score": 0.2714,
+        "TPR": 0.2733
+      },
+      "jpeg70": {
+        "n": 300,
+        "mean_ai_score": 0.253,
+        "TPR": 0.26
+      },
+      "half": {
+        "n": 300,
+        "mean_ai_score": 0.2711,
+        "TPR": 0.2733
+      },
+      "jpeg70_half": {
+        "n": 300,
+        "mean_ai_score": 0.2184,
+        "TPR": 0.2067
+      }
+    },
+    "hard_negatives": {
+      "clean": {
+        "n": 176,
+        "mean_ai_score": 0.1097,
+        "FPR": 0.0909
+      },
+      "jpeg70": {
+        "n": 176,
+        "mean_ai_score": 0.1044,
+        "FPR": 0.0795
+      },
+      "half": {
+        "n": 176,
+        "mean_ai_score": 0.107,
+        "FPR": 0.0795
+      },
+      "jpeg70_half": {
+        "n": 176,
+        "mean_ai_score": 0.0952,
+        "FPR": 0.0682
+      }
+    },
+    "hard_positives": {
+      "clean": {
+        "n": 100,
+        "mean_ai_score": 0.1022,
+        "TPR": 0.08
+      },
+      "jpeg70": {
+        "n": 100,
+        "mean_ai_score": 0.0902,
+        "TPR": 0.08
+      },
+      "half": {
+        "n": 100,
+        "mean_ai_score": 0.0995,
+        "TPR": 0.08
+      },
+      "jpeg70_half": {
+        "n": 100,
+        "mean_ai_score": 0.0632,
+        "TPR": 0.05
+      }
+    }
+  },
+  "OwensLab/commfor-model-384": {
+    "val_real": {
+      "clean": {
+        "n": 300,
+        "mean_ai_score": 0.0014,
+        "FPR": 0.0
+      },
+      "jpeg70": {
+        "n": 300,
+        "mean_ai_score": 0.0062,
+        "FPR": 0.0033
+      },
+      "half": {
+        "n": 300,
+        "mean_ai_score": 0.0167,
+        "FPR": 0.01
+      },
+      "jpeg70_half": {
+        "n": 300,
+        "mean_ai_score": 0.0048,
+        "FPR": 0.0
+      }
+    },
+    "val_ai": {
+      "clean": {
+        "n": 300,
+        "mean_ai_score": 0.9997,
+        "TPR": 1.0
+      },
+      "jpeg70": {
+        "n": 300,
+        "mean_ai_score": 0.9984,
+        "TPR": 1.0
+      },
+      "half": {
+        "n": 300,
+        "mean_ai_score": 0.9999,
+        "TPR": 1.0
+      },
+      "jpeg70_half": {
+        "n": 300,
+        "mean_ai_score": 0.4772,
+        "TPR": 0.4667
+      }
+    },
+    "hard_negatives": {
+      "clean": {
+        "n": 176,
+        "mean_ai_score": 0.0521,
+        "FPR": 0.0341
+      },
+      "jpeg70": {
+        "n": 176,
+        "mean_ai_score": 0.0242,
+        "FPR": 0.0114
+      },
+      "half": {
+        "n": 176,
+        "mean_ai_score": 0.0473,
+        "FPR": 0.0341
+      },
+      "jpeg70_half": {
+        "n": 176,
+        "mean_ai_score": 0.0449,
+        "FPR": 0.0114
+      }
+    },
+    "hard_positives": {
+      "clean": {
+        "n": 100,
+        "mean_ai_score": 0.9507,
+        "TPR": 0.96
+      },
+      "jpeg70": {
+        "n": 100,
+        "mean_ai_score": 0.9148,
+        "TPR": 0.92
+      },
+      "half": {
+        "n": 100,
+        "mean_ai_score": 0.9581,
+        "TPR": 0.97
+      },
+      "jpeg70_half": {
+        "n": 100,
+        "mean_ai_score": 0.5267,
+        "TPR": 0.51
+      }
+    }
+  }
+}

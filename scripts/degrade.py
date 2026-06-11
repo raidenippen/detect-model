@@ -155,12 +155,29 @@ def _preset_screenshot(img):
     img = img.filter(ImageFilter.GaussianBlur(0.3))
     return jpeg_cycle(img, 92, subsampling=1)
 
+def _pinterest_width(img, width):
+    """Pinterest CDN serves fixed-width WebP renditions (236 feed / 736
+    closeup). Harshest mainstream pipeline we've measured: commfor-384 TPR
+    drops 99% -> 75% at 236px (11 Jun 2026)."""
+    if img.width > width:
+        scale = width / img.width
+        img = img.resize((width, max(1, round(img.height * scale))), Image.LANCZOS)
+    return webp_cycle(img, 75)
+
+def _preset_pinterest_closeup(img):
+    return _pinterest_width(img, 736)
+
+def _preset_pinterest_feed(img):
+    return _pinterest_width(img, 236)
+
 PRESETS = {
-    "twitter":       _preset_twitter,
-    "instagram":     _preset_instagram,
-    "whatsapp":      _preset_whatsapp,
-    "discord_thumb": _preset_discord_thumb,
-    "screenshot":    _preset_screenshot,
+    "twitter":           _preset_twitter,
+    "instagram":         _preset_instagram,
+    "whatsapp":          _preset_whatsapp,
+    "discord_thumb":     _preset_discord_thumb,
+    "screenshot":        _preset_screenshot,
+    "pinterest_closeup": _preset_pinterest_closeup,
+    "pinterest_feed":    _preset_pinterest_feed,
 }
 
 

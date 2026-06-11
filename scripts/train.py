@@ -20,6 +20,7 @@ Outputs to --out (default models/<timestamp>):
 
 Usage (4090 box or cloud GPU; CPU/MPS work but are slow):
   python train.py --epochs 8 --batch-size 64
+  python train.py --base OwensLab/commfor-model-224       # Community Forensics
   python train.py --base WinKawaks/vit-small-patch16-224 --target-fpr 0.02
 
 Run scripts/leakage_probe.py BEFORE burning GPU time — if real sources are
@@ -43,6 +44,65 @@ import degrade
 
 ROOT = Path(__file__).parent.parent
 EXTS = (".jpg", ".jpeg", ".png", ".webp")
+
+# The Community Forensics checkpoints (the baseline-benchmark winners) are
+# timm-format ViT-S/16 weights with a single sigmoid logit — not transformers
+# format, so AutoModel can't load them. Convert to ViTForImageClassification at
+# load time so the rest of the pipeline (save_pretrained, best-checkpoint
+# reload, ONNX export) stays transformers-native. The 1-logit head z = w·x+b
+# maps exactly onto a 2-class head [-z/2, +z/2]: softmax P(ai) == sigmoid(z),
+# so fine-tuning starts from the checkpoint's exact decision function.
+COMMFOR_BASES = {"OwensLab/commfor-model-224": 224, "OwensLab/commfor-model-384": 384}
+IMAGENET_MEAN, IMAGENET_STD = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
+
+
+def load_commfor_base(base):
+    from huggingface_hub import hf_hub_download
+    from safetensors.torch import load_file
+    from transformers import ViTConfig, ViTForImageClassification, ViTImageProcessor
+
+    size = COMMFOR_BASES[base]
+    src = load_file(hf_hub_download(base, "model.safetensors"))
+    src = {k.removeprefix("vit."): v for k, v in src.items()}
+
+    cfg = ViTConfig(hidden_size=384, num_hidden_layers=12, num_attention_heads=6,
+                    intermediate_size=1536, image_size=size, patch_size=16,
+                    layer_norm_eps=1e-6, num_labels=2,
+                    id2label={0: "real", 1: "ai"}, label2id={"real": 0, "ai": 1})
+    model = ViTForImageClassification(cfg)
+
+    dst = {
+        "vit.embeddings.cls_token": src["cls_token"],
+        "vit.embeddings.position_embeddings": src["pos_embed"],
+        "vit.embeddings.patch_embeddings.projection.weight": src["patch_embed.proj.weight"],
+        "vit.embeddings.patch_embeddings.projection.bias": src["patch_embed.proj.bias"],
+        "vit.layernorm.weight": src["norm.weight"],
+        "vit.layernorm.bias": src["norm.bias"],
+        "classifier.weight": torch.cat([-src["head.weight"] / 2, src["head.weight"] / 2]),
+        "classifier.bias": torch.cat([-src["head.bias"] / 2, src["head.bias"] / 2]),
+    }
+    for i in range(cfg.num_hidden_layers):
+        t, h = f"blocks.{i}", f"vit.layers.{i}"
+        qkv_w = src[f"{t}.attn.qkv.weight"].chunk(3)
+        qkv_b = src[f"{t}.attn.qkv.bias"].chunk(3)
+        for j, proj in enumerate(("q_proj", "k_proj", "v_proj")):
+            dst[f"{h}.attention.{proj}.weight"] = qkv_w[j]
+            dst[f"{h}.attention.{proj}.bias"] = qkv_b[j]
+        dst[f"{h}.attention.o_proj.weight"] = src[f"{t}.attn.proj.weight"]
+        dst[f"{h}.attention.o_proj.bias"] = src[f"{t}.attn.proj.bias"]
+        dst[f"{h}.layernorm_before.weight"] = src[f"{t}.norm1.weight"]
+        dst[f"{h}.layernorm_before.bias"] = src[f"{t}.norm1.bias"]
+        dst[f"{h}.layernorm_after.weight"] = src[f"{t}.norm2.weight"]
+        dst[f"{h}.layernorm_after.bias"] = src[f"{t}.norm2.bias"]
+        dst[f"{h}.mlp.fc1.weight"] = src[f"{t}.mlp.fc1.weight"]
+        dst[f"{h}.mlp.fc1.bias"] = src[f"{t}.mlp.fc1.bias"]
+        dst[f"{h}.mlp.fc2.weight"] = src[f"{t}.mlp.fc2.weight"]
+        dst[f"{h}.mlp.fc2.bias"] = src[f"{t}.mlp.fc2.bias"]
+    model.load_state_dict(dst)
+
+    processor = ViTImageProcessor(image_mean=IMAGENET_MEAN, image_std=IMAGENET_STD,
+                                  size={"height": size, "width": size})
+    return model, processor
 
 
 # ---------------------------------------------------------------------------
@@ -301,7 +361,18 @@ def main():
               "exists to improve will not be measured.")
 
     from transformers import AutoImageProcessor, AutoModelForImageClassification
-    processor = AutoImageProcessor.from_pretrained(args.base)
+    if args.base in COMMFOR_BASES:
+        if args.image_size != COMMFOR_BASES[args.base]:
+            raise SystemExit(f"{args.base} has fixed position embeddings for "
+                             f"--image-size {COMMFOR_BASES[args.base]}")
+        model, processor = load_commfor_base(args.base)
+    else:
+        processor = AutoImageProcessor.from_pretrained(args.base)
+        model = AutoModelForImageClassification.from_pretrained(
+            args.base, num_labels=2, id2label={0: "real", 1: "ai"},
+            label2id={"real": 0, "ai": 1}, ignore_mismatched_sizes=True,
+        )
+    model = model.to(device)
     mean, std = processor.image_mean, processor.image_std
 
     train_set = TrainSet(train_real, train_ai, args.image_size, mean, std, args.degrade_prob)
@@ -320,12 +391,7 @@ def main():
                               batch_size=args.batch_size, num_workers=args.num_workers)
                    if hard_neg else None)
 
-    # ---- model ----
-    model = AutoModelForImageClassification.from_pretrained(
-        args.base, num_labels=2, id2label={0: "real", 1: "ai"},
-        label2id={"real": 0, "ai": 1}, ignore_mismatched_sizes=True,
-    ).to(device)
-
+    # ---- optimizer ----
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     total_steps = len(train_loader) * args.epochs
 

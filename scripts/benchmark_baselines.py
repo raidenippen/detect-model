@@ -59,6 +59,64 @@ REAL_WORDS = ("real", "human", "authentic", "nature", "photo")
 
 EXTS = ("*.jpg", "*.jpeg", "*.png", "*.webp")
 
+# The Community Forensics checkpoints are timm ViT-S/16 weights with a single
+# sigmoid logit, pushed via PyTorchModelHubMixin — not transformers format.
+# arch, resize (shorter side), center-crop — mirrors the official eval
+# transform in OwensLab/commfor-data-preprocessor (ImageNet normalization).
+COMMFOR_MODELS = {
+    "OwensLab/commfor-model-224": ("vit_small_patch16_224", 256, 224),
+    "OwensLab/commfor-model-384": ("vit_small_patch16_384", 440, 384),
+}
+
+
+def load_commfor(model_id: str, torch_device: str):
+    import torch
+    import timm
+    from huggingface_hub import hf_hub_download
+    from safetensors.torch import load_file
+    from torchvision import transforms
+
+    arch, resize, crop = COMMFOR_MODELS[model_id]
+    state = load_file(hf_hub_download(model_id, "model.safetensors"))
+    model = timm.create_model(arch, num_classes=1)
+    model.load_state_dict({k.removeprefix("vit."): v for k, v in state.items()})
+    model.eval().to(torch_device)
+    tf = transforms.Compose([
+        transforms.Resize(resize),
+        transforms.CenterCrop(crop),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+    ])
+
+    def classify(img: Image.Image):
+        x = tf(img).unsqueeze(0).to(torch_device)
+        with torch.no_grad():
+            p = torch.sigmoid(model(x)).item()
+        return [{"label": "ai", "score": p}, {"label": "real", "score": 1.0 - p}]
+
+    return classify
+
+
+def load_classifier(model_id: str, device, torch_device: str):
+    """PIL image -> [{label, score}, ...] for any of the baseline models."""
+    from transformers import pipeline
+
+    if model_id in COMMFOR_MODELS:
+        return load_commfor(model_id, torch_device)
+    try:
+        return pipeline("image-classification", model=model_id, device=device)
+    except Exception:
+        # transformers v5 dropped legacy processor names (e.g. NYUAD's
+        # preprocessor_config.json says "ViTFeatureExtractor") — retry with the
+        # processor class made explicit. Covers the older ViT-based detectors.
+        from transformers import AutoModelForImageClassification, ViTImageProcessor
+        return pipeline(
+            "image-classification",
+            model=AutoModelForImageClassification.from_pretrained(model_id),
+            image_processor=ViTImageProcessor.from_pretrained(model_id),
+            device=device,
+        )
+
 
 def ai_score(predictions) -> float:
     """Map a list of {label, score} to P(ai), robust to different label schemes
@@ -111,19 +169,22 @@ def main():
     args = parser.parse_args()
 
     import torch
-    from transformers import pipeline
     device = 0 if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else -1)
+    torch_device = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
 
-    results = {}
+    # Merge into any existing report so partial reruns (--models X) don't
+    # clobber previous results.
+    out = REPORT / "baselines.json"
+    results = json.loads(out.read_text()) if out.exists() else {}
     for model_id in args.models:
         print(f"\n=== {model_id} ===")
         try:
-            clf = pipeline("image-classification", model=model_id, device=device)
+            clf = load_classifier(model_id, device, torch_device)
         except Exception as e:
             print(f"  SKIPPED — failed to load: {e}")
             continue
 
-        results[model_id] = {}
+        results[model_id] = {}  # rerunning a model replaces its old rows
         for dir_name, (directory, true_label) in DIRS.items():
             files = list_images(directory, args.limit) if directory.exists() else []
             if not files:
@@ -153,7 +214,6 @@ def main():
                 print(f"  {dir_name:<16} {deg:<12} n={len(scores):<5} "
                       f"mean={mean:.3f}  {metric}@{args.threshold}={flag_rate:.3f}")
 
-    out = REPORT / "baselines.json"
     out.write_text(json.dumps(results, indent=2))
     print(f"\nWrote {out}")
     print("\nReading the table:")
