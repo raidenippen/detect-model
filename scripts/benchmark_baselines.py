@@ -44,6 +44,8 @@ REPORT.mkdir(exist_ok=True)
 # the Community Forensics detector. Loading failures are skipped with a warning
 # — fix ids with --models if any of these have moved.
 DEFAULT_MODELS = [
+    "OwensLab/commfor-model-384",   # = the extension's "commfor384"; the
+    "OwensLab/commfor-model-224",   # Community Forensics released checkpoints
     "NYUAD-ComNets/NYUAD_AI-generated_images_detector",
     "Ateeqq/ai-vs-human-image-detector",
     "haywoodsloan/ai-image-detector-deploy",
