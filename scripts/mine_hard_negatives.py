@@ -62,17 +62,24 @@ def ai_score(predictions) -> float:
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--pool", choices=["real", "ai"], default="real",
+                        help="real: surface real images scored most-AI (hard negatives). "
+                             "ai: surface AI images scored most-real (hard positives / label errors).")
     parser.add_argument("--sample", type=int, default=4000)
     parser.add_argument("--top", type=int, default=150)
     parser.add_argument("--models", nargs="*", default=MINERS)
     parser.add_argument("--seed", type=int, default=7)
     args = parser.parse_args()
 
+    global OUT
+    pool_dir = ROOT / args.pool
+    if args.pool == "ai":
+        OUT = ROOT / "hard_positive_candidates"
     OUT.mkdir(exist_ok=True)
-    paths = [p for p in REAL.iterdir() if p.suffix.lower() in EXTS]
+    paths = [p for p in pool_dir.iterdir() if p.suffix.lower() in EXTS]
     random.Random(args.seed).shuffle(paths)
     paths = paths[: args.sample]
-    print(f"Scoring {len(paths)} real images with {len(args.models)} models...")
+    print(f"Scoring {len(paths)} {args.pool} images with {len(args.models)} models...")
 
     import torch
     from transformers import pipeline
@@ -95,9 +102,12 @@ def main():
                 scores[p].append(float("nan"))
         del clf
 
+    # real pool: rank by HIGHEST ai score (most wrongly flagged).
+    # ai pool: rank by LOWEST ai score (most wrongly passed).
+    sign = -1 if args.pool == "real" else 1
     ranked = sorted(
         ((p, s) for p, s in scores.items() if s and not any(x != x for x in s)),
-        key=lambda kv: -(sum(kv[1]) / len(kv[1])),
+        key=lambda kv: sign * (sum(kv[1]) / len(kv[1])),
     )[: args.top]
 
     with open(OUT / "candidates.csv", "w", newline="") as f:

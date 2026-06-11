@@ -35,6 +35,7 @@ DIRS = {
     "val_real":       (ROOT / "val_real", "real"),
     "val_ai":         (ROOT / "val_ai", "ai"),
     "hard_negatives": (ROOT / "hard_negatives", "real"),
+    "hard_positives": (ROOT / "hard_positives", "ai"),  # deceptive AI baselines miss
 }
 REPORT = ROOT / "validation_report"
 REPORT.mkdir(exist_ok=True)
