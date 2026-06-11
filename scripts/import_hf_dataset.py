@@ -75,7 +75,10 @@ def save_value(value, name_base: str) -> bool:
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--dataset", required=True)
+    p.add_argument("--dataset", default=None)
+    p.add_argument("--data-files", default=None,
+                   help="Stream raw webdataset tars directly, e.g. "
+                        "hf://datasets/<repo>/<dir>/*.tar (for repos without a loader config)")
     p.add_argument("--config", default=None)
     p.add_argument("--split", default="train")
     p.add_argument("--prefix", required=True,
@@ -115,9 +118,17 @@ def main():
                 probs = clip_model(**inputs).logits_per_image.softmax(1)[0]
             return int(probs.argmax()) == 0
 
+    if not args.dataset and not args.data_files:
+        raise SystemExit("Pass --dataset or --data-files.")
+
     from datasets import load_dataset
-    print(f"Streaming {args.dataset}" + (f" [{args.config}]" if args.config else ""))
-    ds = load_dataset(args.dataset, args.config, split=args.split, streaming=True)
+    if args.data_files:
+        print(f"Streaming webdataset {args.data_files}")
+        ds = load_dataset("webdataset", data_files=args.data_files,
+                          split=args.split, streaming=True)
+    else:
+        print(f"Streaming {args.dataset}" + (f" [{args.config}]" if args.config else ""))
+        ds = load_dataset(args.dataset, args.config, split=args.split, streaming=True)
 
     cols = list(ds.features.keys()) if ds.features else None
     if cols:
