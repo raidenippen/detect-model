@@ -102,7 +102,9 @@ def glob_images(directory: Path):
 
 
 def load_images(directory: Path, limit: int = 2000):
-    """Load up to `limit` images from a directory, return list of (path, PIL image)."""
+    """Load up to `limit` images from a directory, return list of (path, PIL image).
+    Images are thumbnailed to <=512px — full-res originals at 2000 images would
+    need ~12GB RAM and OOM-kill the process."""
     paths = glob_images(directory)
     random.shuffle(paths)
     paths = paths[:limit]
@@ -110,6 +112,7 @@ def load_images(directory: Path, limit: int = 2000):
     for p in tqdm(paths, desc=f"  Loading {directory.name}", leave=False):
         try:
             img = Image.open(p).convert("RGB")
+            img.thumbnail((512, 512), Image.BICUBIC)
             images.append((p, img))
         except Exception:
             continue
