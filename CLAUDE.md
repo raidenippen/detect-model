@@ -233,6 +233,9 @@ checkpoint already performs well here, fine-tune from it instead of vanilla ViT-
 chosen as the fine-tune base. See "Gate results" + "Pinterest robustness" in Current Status.)
 
 ### Step 3 — Fine-tuning (pipeline written: scripts/train.py)
+**Operational runbook for the training box (launch, monitoring cadence, healthy/unhealthy
+signals, acceptance criteria, troubleshooting): [docs/TRAINING.md](docs/TRAINING.md).**
+Quick start on the 4090: `bash scripts/train_4090.sh` after rsyncing `data/`.
 ```bash
 python scripts/leakage_probe.py            # ✅ run 11 Jun 2026, accepted (see gate results)
 python scripts/train.py --epochs 8 --batch-size 64 --base OwensLab/commfor-model-224 --num-workers 12
