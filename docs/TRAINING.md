@@ -23,6 +23,44 @@ TPR. False positives on real photos are the worse failure mode — always.
 | Targets | hard-neg FPR ≤ 2% clean AND jpeg70_half; val_ai TPR ≥ 90% clean / ≥ 80% jpeg70_half; report pinterest_feed TPR |
 | Bar to beat | `data/validation_report/baselines.json` (committed in repo) — the commfor-224 rows |
 
+## 0.5 The 4090 box runs WINDOWS — train natively (no WSL)
+
+`train_4090.sh` and the rsync instructions are Linux-flavored; on this box, skip them
+and use the native-Windows path below. train.py itself is plain PyTorch and runs fine
+on Windows (it has the `if __name__ == "__main__"` guard Windows multiprocessing needs).
+
+Setup, in PowerShell (one-time — Python 3.12 from python.org with "Add to PATH",
+plus Git for Windows):
+
+```powershell
+git clone https://github.com/raidenippen/detect-model
+cd detect-model
+python -m venv venv
+venv\Scripts\activate
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126
+pip install -r requirements.txt
+python -c "import torch; print(torch.cuda.is_available())"   # MUST print True
+```
+
+- **The torch install order is load-bearing**: plain `pip install torch` on Windows is
+  CPU-only. Install the cu126 build FIRST so `-r requirements.txt` sees torch satisfied.
+  If `cuda.is_available()` is False, fix that before anything else.
+- **Data transfer**: exFAT USB drive from the Mac (Mac can't write NTFS), drag `data`
+  into the repo folder so it sits at `detect-model\data`. No rsync/SSH needed.
+  Run the same file-count sanity checks as §1 before launching.
+- **Launch** (equivalent of train_4090.sh):
+
+```powershell
+python scripts/train.py --epochs 8 --batch-size 64 --base OwensLab/commfor-model-224 --num-workers 8 > train.log 2>&1
+```
+
+- `--num-workers 8` not 12: Windows uses spawn-based workers (higher overhead). If GPU
+  util is low and cores are idle, try 10–12; if workers thrash, drop to 6.
+- Set Windows power settings to never sleep before starting a run.
+- WSL2 is a fine alternative if native ever misbehaves (GPU passes through via the
+  normal Windows NVIDIA driver) — but keep the dataset inside the WSL filesystem,
+  never on /mnt/c, or decode throughput tanks.
+
 ## 1. Pre-flight (the launch script does all of this; verify if launching manually)
 
 1. `nvidia-smi` shows the 4090 with ≥20GB free; `torch.cuda.is_available()` is True.
