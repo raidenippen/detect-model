@@ -628,5 +628,95 @@
         "TPR": 0.51
       }
     }
+  },
+  "models/20260612_144459/best": {
+    "val_real": {
+      "clean": {
+        "n": 300,
+        "mean_ai_score": 0.0066,
+        "FPR": 0.0033
+      },
+      "jpeg70": {
+        "n": 300,
+        "mean_ai_score": 0.0063,
+        "FPR": 0.0067
+      },
+      "half": {
+        "n": 300,
+        "mean_ai_score": 0.0078,
+        "FPR": 0.01
+      },
+      "jpeg70_half": {
+        "n": 300,
+        "mean_ai_score": 0.0166,
+        "FPR": 0.0167
+      }
+    },
+    "val_ai": {
+      "clean": {
+        "n": 300,
+        "mean_ai_score": 0.97,
+        "TPR": 0.9733
+      },
+      "jpeg70": {
+        "n": 300,
+        "mean_ai_score": 0.9428,
+        "TPR": 0.9467
+      },
+      "half": {
+        "n": 300,
+        "mean_ai_score": 0.9723,
+        "TPR": 0.9733
+      },
+      "jpeg70_half": {
+        "n": 300,
+        "mean_ai_score": 0.9421,
+        "TPR": 0.9467
+      }
+    },
+    "hard_negatives": {
+      "clean": {
+        "n": 176,
+        "mean_ai_score": 0.0879,
+        "FPR": 0.0795
+      },
+      "jpeg70": {
+        "n": 176,
+        "mean_ai_score": 0.0602,
+        "FPR": 0.0568
+      },
+      "half": {
+        "n": 176,
+        "mean_ai_score": 0.0863,
+        "FPR": 0.0795
+      },
+      "jpeg70_half": {
+        "n": 176,
+        "mean_ai_score": 0.0701,
+        "FPR": 0.0682
+      }
+    },
+    "hard_positives": {
+      "clean": {
+        "n": 101,
+        "mean_ai_score": 0.9715,
+        "TPR": 0.9802
+      },
+      "jpeg70": {
+        "n": 101,
+        "mean_ai_score": 0.9527,
+        "TPR": 0.9604
+      },
+      "half": {
+        "n": 101,
+        "mean_ai_score": 0.9702,
+        "TPR": 0.9802
+      },
+      "jpeg70_half": {
+        "n": 101,
+        "mean_ai_score": 0.9375,
+        "TPR": 0.9505
+      }
+    }
   }
 }

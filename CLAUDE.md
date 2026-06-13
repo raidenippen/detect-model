@@ -63,8 +63,48 @@ backend. No changes to the extension are required — the API response shape sta
 
 ## Current Status
 
-**Phase (11 Jun 2026 pm): ALL GATES COMPLETE. Training next, on a cloud GPU —
-`python scripts/train.py --base OwensLab/commfor-model-224` (loader fixed + smoke-tested).**
+**Phase (12 Jun 2026): STEP 3 COMPLETE — v1 model trained, calibrated, evaluated.
+Model: `models/20260612_144459/best` (+ `inference_config.json`, `metrics.json`,
+`operating_point_eval.json`). Next: Step 4/5 — leave-one-generator-out, Hive
+comparison, ONNX int8 export, integrate into the detect repo's `space/app.py`.**
+
+Training run (12 Jun 2026, RTX 4080 Laptop, 8 epochs, bs64, ~2.6h):
+- **Calibration** (`inference_config.json`): temperature 1.69, AI threshold 0.814,
+  uncertain band [0.814, 0.987]. `metrics.json`: hard_neg FPR@threshold **1.7%**,
+  achieved TPR **97.1%**, val_real FPR 0.8% — meets the binding §4 criteria.
+- **Operating-point eval** (`operating_point_eval.json`, calibrated threshold, the
+  production numbers — center-crop preprocessing, matches EvalSet):
+
+  | set | clean | jpeg70 | half | jpeg70_half | pinterest_feed |
+  |---|---|---|---|---|---|
+  | hard_neg FPR | 2.3% | 1.7% | 2.3% | 1.7% | **5.7%** |
+  | val_ai TPR | 96.7% | 93.0% | 96.7% | 93.3% | 94.7% |
+  | hard_pos TPR | 94.1% | 92.1% | 97.0% | 91.1% | 90.1% |
+  | val_real FPR | 0.3% | 0.3% | 0.3% | 0.3% | 1.0% |
+
+- **Honest read vs the commfor-224 base** (baselines.json, both at raw 0.5): the
+  unambiguous win is **degraded deceptive-AI recall** — hard_positives jpeg70
+  78%→96%, jpeg70_half 80%→95%; val_ai jpeg70 88%→95%. The fine-tune shifted the
+  whole score distribution up, so at a *matched* 0.5 threshold hard_negatives are a
+  wash-to-slightly-worse (clean 7.4%→8.0%); it's the **calibrated threshold (0.814)**
+  that brings hard_neg FPR to the ~2% target. So: hits the FPR target at its
+  operating point AND substantially improves degraded AI catch — but the hard-neg
+  gain is a calibration effect, not raw-threshold superiority. Report it that way.
+- **Caveat — pinterest_feed (236px) hard_neg FPR is 5.7%**, well above 2%: under the
+  harshest mainstream degradation the model over-flags polished real photos. The
+  cascade (uncertain→Hive) absorbs some of this, but it's the weak spot to watch and
+  a candidate for the next data/aug pass. Repeat the standing caveat too: ~40% of
+  val_ai is CommunityForensics (in-distribution for the base); hard_pos/hard_neg are
+  the honest sets.
+- **Preprocessing fix shipped with this run**: the saved `ViTImageProcessor` squashed
+  to 224 (resize h,w) instead of the resize-256→center-crop-224 that `EvalSet` and
+  calibration use — a train/serve skew. `train.py` now saves a `BitImageProcessor`
+  (shortest_edge 256 + center_crop 224); the v1 model dir's `preprocessor_config.json`
+  was patched to match. The detect repo's `space/app.py` must use this same transform.
+
+---
+
+**Prior phase (11 Jun 2026 pm): ALL GATES COMPLETE.**
 
 Gate results (11 Jun 2026):
 - Val split frozen: 2,297 val_real / 4,400 val_ai (cluster-aware). Never re-split.
@@ -233,6 +273,11 @@ checkpoint already performs well here, fine-tune from it instead of vanilla ViT-
 chosen as the fine-tune base. See "Gate results" + "Pinterest robustness" in Current Status.)
 
 ### Step 3 — Fine-tuning (pipeline written: scripts/train.py)
+(✅ DONE 12 Jun 2026 — trained on RTX 4080 Laptop, not the 4090; model
+`models/20260612_144459/best`, metrics + caveats in Current Status above. The 4080
+thermal-tripped three times under full load; the run that finished used Balanced
+power scheme + 75% CPU cap + locked 1395MHz GPU clocks + `--num-workers 4`.
+`scripts/eval_operating_point.py` (new) does the calibrated-threshold + pinterest eval.)
 **Operational runbook for the training box (launch, monitoring cadence, healthy/unhealthy
 signals, acceptance criteria, troubleshooting): [docs/TRAINING.md](docs/TRAINING.md).**
 Quick start on the 4090: `bash scripts/train_4090.sh` after rsyncing `data/`.

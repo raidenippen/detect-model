@@ -59,7 +59,7 @@ IMAGENET_MEAN, IMAGENET_STD = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
 def load_commfor_base(base):
     from huggingface_hub import hf_hub_download
     from safetensors.torch import load_file
-    from transformers import ViTConfig, ViTForImageClassification, ViTImageProcessor
+    from transformers import BitImageProcessor, ViTConfig, ViTForImageClassification
 
     size = COMMFOR_BASES[base]
     src = load_file(hf_hub_download(base, "model.safetensors"))
@@ -100,8 +100,13 @@ def load_commfor_base(base):
         dst[f"{h}.mlp.fc2.bias"] = src[f"{t}.mlp.fc2.bias"]
     model.load_state_dict(dst)
 
-    processor = ViTImageProcessor(image_mean=IMAGENET_MEAN, image_std=IMAGENET_STD,
-                                  size={"height": size, "width": size})
+    # Must mirror EvalSet (shorter side -> 256, center crop), which is what the
+    # calibration thresholds are computed under. ViTImageProcessor can only
+    # squash to a fixed size, so use BitImageProcessor for the crop pipeline.
+    processor = BitImageProcessor(image_mean=IMAGENET_MEAN, image_std=IMAGENET_STD,
+                                  do_resize=True, size={"shortest_edge": 256},
+                                  resample=3, do_center_crop=True,
+                                  crop_size={"height": size, "width": size})
     return model, processor
 
 
